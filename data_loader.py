@@ -12,20 +12,61 @@ def load_data():
     }
 
     # Datos dummy para pruebas
-    da = np.full((NA, NT), 10)  # Demanda hídrica constante (10 m3)
+    da = np.array([[8, 10, 9, 7], [12, 11, 10, 10], [9, 8, 12, 10]])  # Demanda hídrica ajustada
     lla = np.zeros((NA, NT))   # Lluvia efectiva (0 en esta fase)
     eta = {(a, r): 0.5 + 0.2 * i for i, r in enumerate(R) for a in A}  # ej: surco=0.5, goteo=0.7, aspersión=0.9
-    cW = {"pozo": 100, "red": 120}  # Costos de agua
-    beta = {a: 500 for a in A}  # Penalización por no cultivar
-    cD = 300  # Penalización por déficit hídrico
+    cW = {"pozo": 30, "red": 35, "tanque": 5}  # Costos de agua ajustados
+    beta = {a: 3000 for a in A}  # Penalización por no cultivar aumentada
+    cD = 500  # Penalización por déficit hídrico ajustada
 
-    params = {
+    Qmax = {(f, t): 100 for f in F for t in T if f != "tanque"}  # Límite por fuente excepto tanque
+    C = 500  # Capacidad del tanque
+    lltanque = {t: 20 + 5 * (t % 2) for t in T}  # Lluvia recolectada por tanque ajustada
+
+    # Parámetros para modelar energía y potencia
+    hf = {"pozo": 50, "red": 10, "tanque": 5}  # Altura manométrica por fuente
+    eta_p = {f: 0.65 for f in F}  # Eficiencia de bomba por fuente
+    rho_g = 9.81  # Peso específico del agua
+    delta_t = 1  # Duración del período en horas
+    Pmax = {"red": 50, "diesel": 30, "solar": 20}  # Potencia máxima por fuente energética
+    cE = {"red": 100, "diesel": 150, "solar": 0}  # Costo energético por fuente
+    E = ["red", "diesel", "solar"]
+    P = [(f, e) for f in F for e in E]
+
+    sets["E"] = E
+    sets["P"] = P
+    params = {}
+    params.update({
+        "hf": hf,
+        "eta_p": eta_p,
+        "rho_g": rho_g,
+        "delta_t": delta_t,
+        "Pmax": Pmax,
+        "cE": cE
+    })
+
+    params.update({
         "da": da,
         "lla": lla,
         "eta": eta,
         "cW": cW,
         "beta": beta,
-        "cD": cD
-    }
+        "cD": cD,
+        "Qmax": Qmax,
+        "C": C,
+        "lltanque": lltanque
+    })
+
+    x_inv = 1000  # Costo de inversión en monitoreo
+    phi_inv = 1500  # Costo de inversión en automatización
+    ex = 10  # Energía consumida por monitoreo por periodo
+    ephi = 15  # Energía consumida por automatización por periodo
+
+    params.update({
+        "x_inv": x_inv,
+        "phi_inv": phi_inv,
+        "ex": ex,
+        "ephi": ephi
+    })
 
     return sets, params
