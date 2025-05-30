@@ -21,8 +21,8 @@ def load_data():
     for a in range(NA):
         for t in range(NT):
             for s in range(len(S)):
-                da[a, t, s] = 10 + s + a % 3  # ejemplo de demanda diferenciada
-    lla = np.zeros((NA, NT))   # Lluvia efectiva (0 en esta fase)
+                da[a, t, s] = 8 + 3 * s + a % 3  # mayor variabilidad en demanda
+    lla = np.random.uniform(0, 5, size=(NA, NT))   # Lluvia efectiva simulada
     eta = {(a, r): 0.5 + 0.2 * i for i, r in enumerate(R) for a in A}  # ej: surco=0.5, goteo=0.7, aspersión=0.9
     cW = {"pozo": 30, "red": 35, "tanque": 5}  # Costos de agua ajustados
     beta = {a: 3000 for a in A}  # Penalización por no cultivar aumentada
@@ -71,8 +71,8 @@ def load_data():
     Qriego = {a: 25 for a in A}  # valor ejemplo de caudal máximo
     params["Qriego"] = Qriego
 
-    x_inv = 1000  # Costo de inversión en monitoreo
-    phi_inv = 1500  # Costo de inversión en automatización
+    x_inv = 300  # Costo de inversión en monitoreo reducido
+    phi_inv = 500  # Costo de inversión en automatización reducido
     ex = 10  # Energía consumida por monitoreo por periodo
     ephi = 15  # Energía consumida por automatización por periodo
 

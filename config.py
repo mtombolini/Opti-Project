@@ -1,4 +1,4 @@
-NA = 3  # Número de sectores
+NA = 5  # Número de sectores
 NT = 4  # Número de días
 NF = 3  # Número de fuentes
 
