@@ -4,15 +4,24 @@ from config import NA, NT, NF, F, A, T
 def load_data():
     # Conjuntos
     R = ["surco", "goteo", "aspersión"]
+    S = ["arcilla", "franco", "arenoso"]
+    s_index = {s: i for i, s in enumerate(S)}
     sets = {
         "A": A,
         "T": T,
         "F": F,
-        "R": R
+        "R": R,
+        "S": S
     }
 
+    sa = {a: S[a % len(S)] for a in A}  # asignación dummy para pruebas
+
     # Datos dummy para pruebas
-    da = np.array([[8, 10, 9, 7], [12, 11, 10, 10], [9, 8, 12, 10]])  # Demanda hídrica ajustada
+    da = np.zeros((NA, NT, len(S)))
+    for a in range(NA):
+        for t in range(NT):
+            for s in range(len(S)):
+                da[a, t, s] = 10 + s + a % 3  # ejemplo de demanda diferenciada
     lla = np.zeros((NA, NT))   # Lluvia efectiva (0 en esta fase)
     eta = {(a, r): 0.5 + 0.2 * i for i, r in enumerate(R) for a in A}  # ej: surco=0.5, goteo=0.7, aspersión=0.9
     cW = {"pozo": 30, "red": 35, "tanque": 5}  # Costos de agua ajustados
@@ -29,9 +38,9 @@ def load_data():
     rho_g = 9.81  # Peso específico del agua
     delta_t = 1  # Duración del período en horas
     Pmax = {"red": 50, "diesel": 30, "solar": 20}  # Potencia máxima por fuente energética
-    cE = {"red": 100, "diesel": 150, "solar": 0}  # Costo energético por fuente
     E = ["red", "diesel", "solar"]
     P = [(f, e) for f in F for e in E]
+    cE = {(e, t): 100 + 10 * (t % 2) if e == "red" else 150 if e == "diesel" else 0 for e in E for t in T}  # Costo energético por fuente y tiempo
 
     sets["E"] = E
     sets["P"] = P
@@ -54,8 +63,13 @@ def load_data():
         "cD": cD,
         "Qmax": Qmax,
         "C": C,
-        "lltanque": lltanque
+        "lltanque": lltanque,
+        "sa": sa,
+        "s_index": s_index
     })
+
+    Qriego = {a: 25 for a in A}  # valor ejemplo de caudal máximo
+    params["Qriego"] = Qriego
 
     x_inv = 1000  # Costo de inversión en monitoreo
     phi_inv = 1500  # Costo de inversión en automatización

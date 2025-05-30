@@ -3,8 +3,10 @@ from gurobipy import GRB
 
 def build_model(sets, params):
     A, T, F, R, E, P = sets["A"], sets["T"], sets["F"], sets["R"], sets["E"], sets["P"]
-    da, lla, eta, cW, beta, cD, Qmax, C, lltanque = (
-        params["da"], params["lla"], params["eta"], params["cW"],
+    da, sa, s_index = params["da"], params["sa"], params["s_index"]
+    Qriego = params["Qriego"]
+    lla, eta, cW, beta, cD, Qmax, C, lltanque = (
+        params["lla"], params["eta"], params["cW"],
         params["beta"], params["cD"], params["Qmax"], params["C"], params["lltanque"]
     )
     hf, eta_p, rho_g, delta_t, Pmax, cE = (
@@ -39,70 +41,83 @@ def build_model(sets, params):
         gp.quicksum(cD * delta[a, t] for a in A for t in T)
         +
         gp.quicksum(
-            cE[e] * (rho_g * hf[f] / eta_p[f]) * (qa[a, t, f] + (wt[f, t] if (f, t) in wt else 0))
+            cE[e, t] * (rho_g * hf[f] / eta_p[f]) * (qa[a, t, f] + (wt[f, t] if (f, t) in wt else 0))
             for (f, e) in P for a in A for t in T if f != "tanque"
         )
         + x_inv * x + phi_inv * phi
-        + gp.quicksum(cE["red"] * (ex * x + ephi * phi) for t in T),
+        + gp.quicksum(cE["red", t] * (ex * x + ephi * phi) for t in T),
         GRB.MINIMIZE
     )
 
-    # Restricción de método único
+    # R1 Restricción de método único
     for a in A:
         for t in T:
-            model.addConstr(gp.quicksum(ua[a, t, r] for r in R) == ya[a, t], name=f"metodo_unico_{a}_{t}")
+            model.addConstr(gp.quicksum(ua[a, t, r] for r in R) == ya[a, t], name=f"R1_metodo_unico_{a}_{t}")
 
-    # Restricción de balance hídrico
+    # R2 Restricción de balance hídrico
     for a in A:
+        s_name = sa[a]
+        s = s_index[s_name]
         for t in T:
             model.addConstr(
-                gp.quicksum(qa[a, t, f] * gp.quicksum(eta[a, r] * ua[a, t, r] for r in R) for f in F) + delta[a, t] + lla[a, t] == da[a, t] * za[a],
-                name=f"balance_{a}_{t}"
+                gp.quicksum(qa[a, t, f] * gp.quicksum(eta[a, r] * ua[a, t, r] for r in R) for f in F) + delta[a, t] + lla[a, t] == da[a, t, s] * za[a],
+                name=f"R2_balance_hidrico_{a}_{t}"
             )
 
-    # Restricciones de límite de extracción por fuente (excepto tanque)
+    # R3 Restricciones de límite de extracción por fuente (excepto tanque)
     for f in F:
         if f != "tanque":
             for t in T:
                 model.addConstr(
                     gp.quicksum(qa[a, t, f] for a in A) <= Qmax[f, t],
-                    name=f"limite_fuente_{f}_{t}"
+                    name=f"R3_limite_fuente_{f}_{t}"
                 )
 
-    # Restricciones de balance del tanque
+    # R4 Restricciones de balance del tanque
     for t in T:
         entrada = gp.quicksum(wt[f, t] for f in F if f != "tanque") + lltanque[t]
         salida = gp.quicksum(qa[a, t, "tanque"] for a in A)
         if t == 0:
-            model.addConstr(gt[t] == entrada - salida, name=f"tanque_balance_{t}")
+            model.addConstr(gt[t] == entrada - salida, name=f"R4_tanque_balance_{t}")
         else:
-            model.addConstr(gt[t] == gt[t-1] + entrada - salida, name=f"tanque_balance_{t}")
-        model.addConstr(gt[t] <= C, name=f"capacidad_tanque_{t}")
+            model.addConstr(gt[t] == gt[t-1] + entrada - salida, name=f"R4_tanque_balance_{t}")
+        model.addConstr(gt[t] <= C, name=f"R4_capacidad_tanque_{t}")
 
-    model.addConstr(phi <= x, name="automatizacion_requiere_monitoreo")
+    # R5 Restricción de automatización requiere monitoreo
+    model.addConstr(phi <= x, name="R5_automatizacion_requiere_monitoreo")
 
-    # Restricción 4: Activación de riego solo si se cultiva
+    # R6 Restricción: Activación de riego solo si se cultiva
     for a in A:
         for t in T:
-            model.addConstr(ya[a, t] <= za[a], name=f"riego_solo_si_cultivo_{a}_{t}")
+            model.addConstr(ya[a, t] <= za[a], name=f"R6_riego_solo_si_cultivo_{a}_{t}")
 
-    # Restricción 5: Cobertura hídrica mínima estacional
+    # R7 Restricción: Cobertura hídrica mínima estacional
     gamma = 0.7  # cobertura mínima
     for a in A:
-        demanda_total = gp.quicksum(da[a, t] for t in T)
+        s_name = sa[a]
+        s = s_index[s_name]
+        demanda_total = gp.quicksum(da[a, t, s] for t in T)
         agua_aplicada = gp.quicksum(
             gp.quicksum(eta[a, r] * ua[a, t, r] for r in R) * gp.quicksum(qa[a, t, f] for f in F)
             for t in T
         )
-        model.addConstr(agua_aplicada >= gamma * demanda_total * za[a], name=f"cobertura_min_{a}")
+        model.addConstr(agua_aplicada >= gamma * demanda_total * za[a], name=f"R7_cobertura_minima_{a}")
 
-    # Restricción 9: Déficit solo si se cultiva
+    # R8 Restricción adicional: Caudal máximo de riego
+    for a in A:
+        for t in T:
+            model.addConstr(
+                gp.quicksum(qa[a, t, f] for f in F) <= Qriego[a] * ya[a, t] * delta_t,
+                name=f"R8_max_riego_{a}_{t}"
+            )
+
+    # R9 Restricción: Déficit solo si se cultiva
     M = 1000  # valor suficientemente grande
     for a in A:
         for t in T:
-            model.addConstr(delta[a, t] <= M * za[a], name=f"delta_si_cultivo_{a}_{t}")
+            model.addConstr(delta[a, t] <= M * za[a], name=f"R9_delta_si_cultivo_{a}_{t}")
 
-    # Restricción de potencia disponible por fuente de energía
+    # R10 Restricción de potencia disponible por fuente de energía
     for e in E:
         for t in T:
             model.addConstr(
@@ -110,7 +125,7 @@ def build_model(sets, params):
                     (rho_g * hf[f] / eta_p[f]) * (qa[a, t, f] + (wt[f, t] if (f, t) in wt else 0))
                     for f in F if f != "tanque" for a in A
                 ) <= Pmax[e] * delta_t,
-                name=f"potencia_max_{e}_{t}"
+                name=f"R10_potencia_max_{e}_{t}"
             )
 
     return model, {"qa": qa, "za": za, "delta": delta, "ya": ya, "ua": ua, "gt": gt, "wt": wt, "x": x, "phi": phi}
