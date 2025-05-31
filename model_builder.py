@@ -128,4 +128,8 @@ def build_model(sets, params):
     #             name=f"R10_potencia_max_{e}_{t}"
     #         )
 
+    # R11: Obligar a cultivar al menos k sectores
+    k = 2  # Puedes ajustar este valor según el nivel de exigencia deseado
+    model.addConstr(gp.quicksum(za[a] for a in A) >= k, name="R11_minimo_sectores_cultivados")
+
     return model, {"qa": qa, "za": za, "delta": delta, "ya": ya, "ua": ua, "gt": gt, "wt": wt, "x": x, "phi": phi}
