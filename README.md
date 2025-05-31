@@ -63,22 +63,27 @@ Lee `Data.xlsx` y construye:
 
 Todos los valores son procesados desde hojas específicas del archivo Excel.
 
+También incluye lógica para validar que los datos estén correctamente normalizados, y permite cargar nuevas hojas sin romper la estructura del código.
+
 ### `model_builder.py`
 
 Define el modelo de optimización:
 - Variables: riego (`qa`), cultivo (`za`), déficit (`delta`), uso de método (`ua`), etc.
 - Función objetivo: minimiza costos de agua, energía, penalización por no cultivar, déficit y tecnología.
-- 9 restricciones activas (R1-R9):
+- 11 restricciones activas (R1–R11):
   - R1: método único por día y área.
   - R2: balance hídrico.
-  - R3: límite de extracción.
-  - R4: balance del estanque.
-  - R5: automatización requiere monitoreo.
-  - R6: activación de riego solo si se cultiva.
-  - R7: [eliminada temporalmente].
-  - R8: caudal máximo por área.
-  - R9: déficit permitido solo si se cultiva.
-  - R10: [eliminada temporalmente].
+  - R3: límite de extracción por fuente.
+  - R4: balance y capacidad del estanque.
+  - R5: automatización solo si hay monitoreo.
+  - R6: solo se riega si se cultiva.
+  - R7: [opcional, desactivada].
+  - R8: caudal máximo de riego.
+  - R9: déficit solo si se cultiva.
+  - R10: [opcional, desactivada por potencia].
+  - R11: mínimo de sectores cultivados.
+
+Cada restricción representa una condición real del sistema agrícola, permitiendo simular decisiones complejas de forma controlada.
 
 ### `output_handler.py`
 
@@ -117,6 +122,7 @@ Puedes modificar estos parámetros en el Excel (`Data.xlsx`) para observar difer
 - Si ningún sector es cultivado, probablemente los costos superan los beneficios.
 - Puedes forzar cultivo aumentando `beta` o reduciendo `cW`, `cD`, o `cE`.
 - Si el modelo es inviable, se imprime el conjunto IIS para depurar.
+- Puedes escalar el problema aumentando `NA` o `NT` en `config.py` para ver cómo cambia el desempeño del modelo.
 
 ## 🧩 Dependencias
 
