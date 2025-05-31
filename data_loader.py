@@ -28,8 +28,8 @@ def load_data():
     beta = {a: 3000 for a in A}  # Penalización por no cultivar aumentada
     cD = 500  # Penalización por déficit hídrico ajustada
 
-    Qmax = {(f, t): 100 for f in F for t in T if f != "tanque"}  # Límite por fuente excepto tanque
-    C = 500  # Capacidad del tanque
+    Qmax = {(f, t): 150 for f in F for t in T if f != "tanque"}  # Límite por fuente excepto tanque aumentado
+    C = 1000  # Capacidad del tanque aumentada
     lltanque = {t: 20 + 5 * (t % 2) for t in T}  # Lluvia recolectada por tanque ajustada
 
     # Parámetros para modelar energía y potencia
@@ -68,7 +68,7 @@ def load_data():
         "s_index": s_index
     })
 
-    Qriego = {a: 25 for a in A}  # valor ejemplo de caudal máximo
+    Qriego = {a: 50 for a in A}  # Aumento adicional de caudal máximo
     params["Qriego"] = Qriego
 
     x_inv = 300  # Costo de inversión en monitoreo reducido

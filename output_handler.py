@@ -21,5 +21,12 @@ def show_results(model, variables):
             if var.X > 0.5:
                 print(f"Sector {a}, Día {t}: {r}")
         print(f"\nCosto total: {model.ObjVal:.2f}")
+        x = variables["x"]
+        phi = variables["phi"]
+        if model.status == 2:
+            print(f"\nSistema de monitoreo activado: {'Sí' if x.X > 0.5 else 'No'}")
+            print(f"Sistema de automatización activado: {'Sí' if phi.X > 0.5 else 'No'}")
+        else:
+            print("\n[!] No se pudo evaluar activación de tecnologías porque no se encontró solución óptima.")
     else:
         print("No se encontró solución óptima.")

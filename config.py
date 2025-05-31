@@ -1,5 +1,5 @@
 NA = 5  # Número de sectores
-NT = 4  # Número de días
+NT = 7  # Número de días
 NF = 3  # Número de fuentes
 
 A = list(range(NA))

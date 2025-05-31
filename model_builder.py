@@ -91,17 +91,17 @@ def build_model(sets, params):
         for t in T:
             model.addConstr(ya[a, t] <= za[a], name=f"R6_riego_solo_si_cultivo_{a}_{t}")
 
-    # R7 Restricción: Cobertura hídrica mínima estacional
-    gamma = 0.7  # cobertura mínima
-    for a in A:
-        s_name = sa[a]
-        s = s_index[s_name]
-        demanda_total = gp.quicksum(da[a, t, s] for t in T)
-        agua_aplicada = gp.quicksum(
-            gp.quicksum(eta[a, r] * ua[a, t, r] for r in R) * gp.quicksum(qa[a, t, f] for f in F)
-            for t in T
-        )
-        model.addConstr(agua_aplicada >= gamma * demanda_total * za[a], name=f"R7_cobertura_minima_{a}")
+    # R7 Eliminada temporalmente por inviabilidad del modelo
+    # gamma = 0.5  # cobertura mínima
+    # for a in A:
+    #     s_name = sa[a]
+    #     s = s_index[s_name]
+    #     demanda_total = gp.quicksum(da[a, t, s] for t in T)
+    #     agua_aplicada = gp.quicksum(
+    #         gp.quicksum(eta[a, r] * ua[a, t, r] for r in R) * gp.quicksum(qa[a, t, f] for f in F)
+    #         for t in T
+    #     )
+    #     model.addConstr(agua_aplicada >= gamma * demanda_total * za[a], name=f"R7_cobertura_minima_{a}")
 
     # R8 Restricción adicional: Caudal máximo de riego
     for a in A:
@@ -117,15 +117,15 @@ def build_model(sets, params):
         for t in T:
             model.addConstr(delta[a, t] <= M * za[a], name=f"R9_delta_si_cultivo_{a}_{t}")
 
-    # R10 Restricción de potencia disponible por fuente de energía
-    for e in E:
-        for t in T:
-            model.addConstr(
-                gp.quicksum(
-                    (rho_g * hf[f] / eta_p[f]) * (qa[a, t, f] + (wt[f, t] if (f, t) in wt else 0))
-                    for f in F if f != "tanque" for a in A
-                ) <= Pmax[e] * delta_t,
-                name=f"R10_potencia_max_{e}_{t}"
-            )
+    # R10 Eliminada temporalmente por inviabilidad del modelo
+    # for e in E:
+    #     for t in T:
+    #         model.addConstr(
+    #             gp.quicksum(
+    #                 (rho_g * hf[f] / eta_p[f]) * (qa[a, t, f] + (wt[f, t] if (f, t) in wt else 0))
+    #                 for f in F if f != "tanque" for a in A
+    #             ) <= Pmax[e] * delta_t,
+    #             name=f"R10_potencia_max_{e}_{t}"
+    #         )
 
     return model, {"qa": qa, "za": za, "delta": delta, "ya": ya, "ua": ua, "gt": gt, "wt": wt, "x": x, "phi": phi}
