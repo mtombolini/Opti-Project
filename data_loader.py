@@ -1,7 +1,9 @@
 import numpy as np
+import pandas as pd
 from config import NA, NT, NF, F, A, T
 
 def load_data():
+    xls = pd.ExcelFile("Data.xlsx")
     # Conjuntos
     R = ["surco", "goteo", "aspersión"]
     S = ["arcilla", "franco", "arenoso"]
@@ -14,33 +16,92 @@ def load_data():
         "S": S
     }
 
-    sa = {a: S[a % len(S)] for a in A}  # asignación dummy para pruebas
+    # Asignación de tipo de suelo a cada sector (dummy: cíclico)
+    sa = {a: S[a % len(S)] for a in A}
 
-    # Datos dummy para pruebas
+    # --- Carga de datos reales desde Data.xlsx ---
+
+    # Lluvia recolectada por tanque
+    lluvia_df = xls.parse("Promedio lluvia diario")
+    lltanque = {t: float(lluvia_df.iloc[t]["recoleccion diaria (m3)"]) for t in T}
+
+    # Costo de oportunidad (beta)
+    areas_df = xls.parse("Areas")
+    beta = {a: float(areas_df.iloc[a]["costo oportunidad  por año (CLP)"]) / 365 for a in A}
+
+    # Eficiencia de métodos (eta)
+    eficiencia_df = xls.parse("eficiencia metodos")
+    metodo_map = {"surco": "gravedad", "goteo": "goteo", "aspersión": "aspersión"}
+    eta = {(a, r): float(eficiencia_df[eficiencia_df["metodo"] == metodo_map[r]]["promedio"].values[0]) for a in A for r in R}
+
+    # Capacidad del estanque (C)
+    estanque_df = xls.parse("Capacidad estanque")
+    C = float(estanque_df["capacidad (m^3)"].mean())
+
+    # Altura manométrica (hf) y eficiencia bomba (eta_p)
+    altura_df = xls.parse("Altura manometrica")
+    bomba_df = xls.parse("Bomba")
+    hf = {"pozo": float(altura_df[altura_df["tipo de fuente (f)"].str.contains("pozo", case=False)]["altura maxima (m)"].mean()),
+          "red": 10,
+          "tanque": 5}
+    eta_p = {f: float(bomba_df["promedio"].mean()) for f in F}
+
+    # Costo unitario de agua (cW)
+    agua_df = xls.parse("Costo unitario agua")
+    cW = {"pozo": float(agua_df[agua_df["fuente"].str.contains("pozo", case=False)]["clp "].mean()),
+          "red": float(agua_df[agua_df["fuente"].str.contains("rio|estero", case=False)]["clp "].mean()),
+          "tanque": float(agua_df[agua_df["fuente"].str.contains("estanque", case=False)]["clp "].mean())}
+
+    # Penalización por déficit hídrico (cD)
+    penal_df = xls.parse("Penalización")
+    cD = float(penal_df["Penalizacion (CLP/m^3)"].mean())
+
+    # Costos y energía de sistemas automáticos/monitoreo
+    auto_df = xls.parse("automatico")
+    # Normalizar valores de la columna 'sistema' para evitar errores por espacios o mayúsculas
+    auto_df["sistema"] = auto_df["sistema"].str.strip().str.lower()
+
+    # Validar existencia antes de acceder
+    if "monitoreo" in auto_df["sistema"].values and "automatico" in auto_df["sistema"].values:
+        x_inv = int(auto_df[auto_df["sistema"] == "monitoreo"]["costo instalacion (CLP)"].values[0])
+        phi_inv = int(auto_df[auto_df["sistema"] == "automatico"]["costo instalacion (CLP)"].values[0])
+        ex = int(auto_df[auto_df["sistema"] == "monitoreo"]["gasto energetico (kWh)"].values[0])
+        ephi = int(auto_df[auto_df["sistema"] == "automatico"]["gasto energetico (kWh)"].values[0])
+    else:
+        raise ValueError("Faltan valores para 'monitoreo' o 'automatico' en la hoja 'automatico' del Excel.")
+
+    # Demanda hídrica (da)
+    suelo_df = xls.parse("Suelos necesidades")
+    suelo_df.columns = suelo_df.columns.str.strip().str.lower()
+    suelo_df["tipo de suelo"] = suelo_df["tipo de suelo"].str.strip().str.lower()
+    suelo_map = {"arcilla": "Arcilloso", "franco": "Franco", "arenoso": "Arenoso"}
     da = np.zeros((NA, NT, len(S)))
-    for a in range(NA):
-        for t in range(NT):
+    for a in A:
+        for t in T:
             for s in range(len(S)):
-                da[a, t, s] = 8 + 3 * s + a % 3  # mayor variabilidad en demanda
-    lla = np.random.uniform(0, 5, size=(NA, NT))   # Lluvia efectiva simulada
-    eta = {(a, r): 0.5 + 0.2 * i for i, r in enumerate(R) for a in A}  # ej: surco=0.5, goteo=0.7, aspersión=0.9
-    cW = {"pozo": 30, "red": 35, "tanque": 5}  # Costos de agua ajustados
-    beta = {a: 3000 for a in A}  # Penalización por no cultivar aumentada
-    cD = 500  # Penalización por déficit hídrico ajustada
+                suelo_tipo = suelo_map[S[s]]
+                valor = suelo_df[suelo_df["tipo de suelo"] == suelo_tipo.lower()]["demanda hidrica 1 hectarea  1 dia (m^3)"].values[0]
+                da[a, t, s] = float(valor)
 
-    Qmax = {(f, t): 150 for f in F for t in T if f != "tanque"}  # Límite por fuente excepto tanque aumentado
-    C = 1000  # Capacidad del tanque aumentada
-    lltanque = {t: 20 + 5 * (t % 2) for t in T}  # Lluvia recolectada por tanque ajustada
+    # Lluvia efectiva (dummy, mantener aleatorio si no hay hoja)
+    lla = np.zeros((NA, NT))
+    # Si tienes una hoja en el excel, reemplazar aquí la asignación de lla
+    # lla_df = xls.parse("???")
+    # lla = ... # asignar valores reales aquí
+
+    # Límite de extracción por fuente (excepto tanque)
+    Qmax = {(f, t): 150 for f in F for t in T if f != "tanque"}
+
+    # Caudal máximo de riego
+    Qriego = {a: 50 for a in A}
 
     # Parámetros para modelar energía y potencia
-    hf = {"pozo": 50, "red": 10, "tanque": 5}  # Altura manométrica por fuente
-    eta_p = {f: 0.65 for f in F}  # Eficiencia de bomba por fuente
     rho_g = 9.81  # Peso específico del agua
     delta_t = 1  # Duración del período en horas
-    Pmax = {"red": 50, "diesel": 30, "solar": 20}  # Potencia máxima por fuente energética
+    Pmax = {"red": 50, "diesel": 30, "solar": 20}
     E = ["red", "diesel", "solar"]
     P = [(f, e) for f in F for e in E]
-    cE = {(e, t): 100 + 10 * (t % 2) if e == "red" else 150 if e == "diesel" else 0 for e in E for t in T}  # Costo energético por fuente y tiempo
+    cE = {(e, t): 100 + 10 * (t % 2) if e == "red" else 150 if e == "diesel" else 0 for e in E for t in T}
 
     sets["E"] = E
     sets["P"] = P
@@ -68,14 +129,7 @@ def load_data():
         "s_index": s_index
     })
 
-    Qriego = {a: 50 for a in A}  # Aumento adicional de caudal máximo
     params["Qriego"] = Qriego
-
-    x_inv = 300  # Costo de inversión en monitoreo reducido
-    phi_inv = 500  # Costo de inversión en automatización reducido
-    ex = 10  # Energía consumida por monitoreo por periodo
-    ephi = 15  # Energía consumida por automatización por periodo
-
     params.update({
         "x_inv": x_inv,
         "phi_inv": phi_inv,
